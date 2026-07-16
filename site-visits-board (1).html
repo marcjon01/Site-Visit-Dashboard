@@ -19,6 +19,7 @@
     --blue:#5FA8F5;
     --pink:#F472B6;
     --gold:#FBBF24;
+    --purple:#A78BFA;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{
@@ -105,7 +106,7 @@
   /* ---- Table header row ---- */
   .row-header{
     display:grid;
-    grid-template-columns:14px 1.4fr 1.6fr 1fr 1.3fr 1fr;
+    grid-template-columns:14px 1.1fr 0.6fr 1fr 1fr 1.2fr 1.5fr;
     gap:16px;
     padding:0 20px 8px;
     font-size:11px;
@@ -117,7 +118,7 @@
   /* ---- Cards ---- */
   .card{
     display:grid;
-    grid-template-columns:14px 1.4fr 1.6fr 1fr 1.3fr 1fr;
+    grid-template-columns:14px 1.1fr 0.6fr 1fr 1fr 1.2fr 1.5fr;
     gap:16px;
     align-items:center;
     background:var(--card);
@@ -141,6 +142,7 @@
   .tag.internal{background:var(--blue);}
   .tag.vendor{background:var(--pink);}
   .tag.audit{background:var(--gold);}
+  .tag.general{background:var(--purple);}
 
   .staff{font-weight:600; font-size:16px;}
   .staff .sub{display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:2px; letter-spacing:0.04em;}
@@ -148,6 +150,8 @@
   .org{font-size:15px;}
   .city{font-size:15px; color:var(--text);}
   .city .pin{color:var(--muted); font-size:12px; margin-right:4px;}
+
+  .state{font-size:15px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
 
   .dates{font-size:14px; color:var(--text);}
   .dates .range{color:var(--muted); font-size:12px; display:block;}
@@ -165,6 +169,7 @@
   .status-pill.internal{background:rgba(95,168,245,0.12); color:var(--blue);}
   .status-pill.vendor{background:rgba(244,114,182,0.12); color:var(--pink);}
   .status-pill.audit{background:rgba(251,191,36,0.12); color:var(--gold);}
+  .status-pill.general{background:rgba(167,139,250,0.12); color:var(--purple);}
 
   footer{
     margin-top:40px;
@@ -179,7 +184,7 @@
 
   @media (max-width:900px){
     .row-header{display:none;}
-    .card{grid-template-columns:14px 1fr; grid-template-rows:auto auto auto auto; row-gap:6px;}
+    .card{grid-template-columns:14px 1fr; grid-template-rows:auto auto auto auto auto; row-gap:6px;}
   }
 
   .loading, .empty, .error{
@@ -195,7 +200,7 @@
 
   <header>
     <div class="brand">
-      <span class="eyebrow">COMMUNITY ENGAGEMENT</span>
+      <span class="eyebrow">FIELD OPERATIONS</span>
       <h1>SITE VISITS</h1>
     </div>
     <div class="clock">
@@ -212,7 +217,7 @@
   </div>
 
   <div class="row-header">
-    <span></span><span>Staff</span><span>Organization</span><span>City</span><span>Dates</span><span>Category</span>
+    <span></span><span>Dates</span><span>State</span><span>City</span><span>Team</span><span>Staff</span><span>Organization</span>
   </div>
 
   <div id="current-list">
@@ -227,7 +232,7 @@
   </div>
 
   <div class="row-header">
-    <span></span><span>Staff</span><span>Organization</span><span>City</span><span>Dates</span><span>Category</span>
+    <span></span><span>Dates</span><span>State</span><span>City</span><span>Team</span><span>Staff</span><span>Organization</span>
   </div>
 
   <div id="upcoming-list">
@@ -246,23 +251,27 @@
      AIRTABLE CONFIG — fill in these four values for your base
      ============================================================ */
   const CONFIG = {
-    PAT: "patb8wJL8kbX0imAy.33e6643e514163458b40e9faa092f6778d229e081889ddd63f62258a076b320e",   // Airtable Personal Access Token (starts with "pat...")
-    BASE_ID: "appSZCigHtsRo3v9H",              // starts with "app..."
+    PAT: "patb8wJL8kbX0imAy.33e6643e514163458b40e9faa092f6778d229e081889ddd63f62258a076b320e",
+    BASE_ID: "appSZCigHtsRo3v9H",
     TABLE_NAME: "Visits",                            // exact table name (or table ID, starts with "tbl...")
-    VIEW_CURRENT: "Currently",                         // the view name we built earlier
-    VIEW_UPCOMING: "Upcoming",                       // the view name we built earlier
+    VIEW_CURRENT: "Currently",                        // matches your actual view name
+    VIEW_UPCOMING: "Upcoming",                        // the view name we built earlier
     REFRESH_SECONDS: 60                              // how often to re-check Airtable
   };
 
-  // Maps your Airtable "Category" field values to the CSS classes/colors already in this file.
-  // Edit the left-hand text to match your exact Category option labels if they differ.
-  const CATEGORY_CLASS = {
-    "Client Visit": "client",
-    "Internal Review": "internal",
-    "Vendor": "vendor",
-    "Audit": "audit"
+  // Explicit color assignment for each team (instead of auto-hashing), so
+  // colors are predictable and stay consistent as you add more visits.
+  const TEAM_CLASS = {
+    "HIS EYES": "client",   // green
+    "S2N": "internal",      // blue
+    "INOBF": "vendor",      // pink
+    "IMPACT": "audit",      // gold
+    "CE General": "general" // purple
   };
   const DEFAULT_CLASS = "internal";
+  function colorClassFor(key){
+    return TEAM_CLASS[key] || DEFAULT_CLASS;
+  }
 
   /* ============================================================
      Clock
@@ -303,14 +312,30 @@
     }
   }
 
+  // Airtable fields can come back as plain strings, arrays (multi-select /
+  // linked records), or objects (collaborators, single linked records).
+  // This normalizes any of those shapes into a readable string.
+  function fieldToText(value){
+    if (value === undefined || value === null || value === "") return null;
+    if (Array.isArray(value)) {
+      return value.map(v => fieldToText(v)).filter(Boolean).join(", ");
+    }
+    if (typeof value === "object") {
+      // Collaborator fields have {name, email, id}; linked records expanded
+      // objects sometimes have {name} or {id}.
+      return value.name || value.email || value.id || JSON.stringify(value);
+    }
+    return String(value);
+  }
+
   function renderCard(record, isCurrent){
     const f = record.fields;
-    const staff = f["Staff Member"] || "—";
-    const role = f["Role"] || "";
-    const org = f["Organization"] || "—";
-    const city = f["City"] || "—";
-    const category = f["Category"] || "";
-    const cls = CATEGORY_CLASS[category] || DEFAULT_CLASS;
+    const staff = fieldToText(f["Staff"]) || "—";
+    const org = (fieldToText(f["Organization(s)"]) || "—").trim();
+    const city = fieldToText(f["City/Region"]) || "—";
+    const state = fieldToText(f["State"]) || "—";
+    const team = fieldToText(f["Team"]) || "";
+    const cls = colorClassFor(team);
     const start = f["Start Date"] ? new Date(f["Start Date"]) : null;
     const end = f["End Date"] ? new Date(f["End Date"]) : null;
     const dateText = (start && end) ? `${fmtDate(start)} – ${fmtDate(end)}` : "—";
@@ -319,11 +344,12 @@
     return `
       <div class="card ${isCurrent ? 'now' : ''}">
         <span class="tag ${cls}"></span>
-        <span class="staff">${staff}${role ? `<span class="sub">${role}</span>` : ''}</span>
-        <span class="org">${org}</span>
-        <span class="city"><span class="pin">📍</span>${city}</span>
         <span class="dates">${dateText}${subLabel ? `<span class="range">${subLabel}</span>` : ''}</span>
-        <span class="status-pill ${cls}">${category || 'Uncategorized'}</span>
+        <span class="state">${state}</span>
+        <span class="city"><span class="pin">📍</span>${city}</span>
+        <span class="status-pill ${cls}">${team || 'No team'}</span>
+        <span class="staff">${staff}</span>
+        <span class="org">${org}</span>
       </div>`;
   }
 
