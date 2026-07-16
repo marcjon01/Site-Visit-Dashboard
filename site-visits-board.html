@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Site Visits — Live Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E11;
+    --panel:#12161B;
+    --card:#1B2027;
+    --card-border:#2A313A;
+    --amber:#FFB000;
+    --amber-dim:#7A5800;
+    --text:#E8E6E1;
+    --muted:#7C8592;
+    --green:#4ADE80;
+    --blue:#5FA8F5;
+    --pink:#F472B6;
+    --gold:#FBBF24;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    height:100%;
+    overflow-x:hidden;
+  }
+  .board{
+    max-width:1400px;
+    margin:0 auto;
+    padding:28px 32px 48px;
+  }
+
+  /* ---- Header ---- */
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom:3px solid var(--amber);
+    padding-bottom:16px;
+    margin-bottom:28px;
+  }
+  .brand{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .brand .eyebrow{
+    font-size:12px;
+    letter-spacing:0.35em;
+    color:var(--amber);
+    font-weight:600;
+  }
+  .brand h1{
+    font-family:'Archivo Black', sans-serif;
+    font-size:34px;
+    letter-spacing:0.02em;
+    color:var(--text);
+  }
+  .clock{
+    text-align:right;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .clock .time{
+    font-size:28px;
+    color:var(--amber);
+    font-weight:600;
+    letter-spacing:0.05em;
+  }
+
+  /* ---- Section labels ---- */
+  .section-label{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin:36px 0 14px;
+  }
+  .section-label h2{
+    font-family:'Archivo Black', sans-serif;
+    font-size:20px;
+    letter-spacing:0.08em;
+  }
+  .section-label.now h2{color:var(--green);}
+  .section-label.next h2{color:var(--blue);}
+  .section-label .line{
+    flex:1;
+    height:1px;
+    background:var(--card-border);
+  }
+  .live-dot{
+    width:10px; height:10px; border-radius:50%;
+    background:var(--green);
+    box-shadow:0 0 8px var(--green);
+    animation:pulse 1.6s infinite ease-in-out;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:0.25;}
+  }
+
+  /* ---- Table header row ---- */
+  .row-header{
+    display:grid;
+    grid-template-columns:14px 1.4fr 1.6fr 1fr 1.3fr 1fr;
+    gap:16px;
+    padding:0 20px 8px;
+    font-size:11px;
+    letter-spacing:0.12em;
+    color:var(--muted);
+    text-transform:uppercase;
+  }
+
+  /* ---- Cards ---- */
+  .card{
+    display:grid;
+    grid-template-columns:14px 1.4fr 1.6fr 1fr 1.3fr 1fr;
+    gap:16px;
+    align-items:center;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:6px;
+    padding:16px 20px;
+    margin-bottom:10px;
+    animation:flip-in 0.5s ease backwards;
+  }
+  .card.now{
+    box-shadow: inset 3px 0 0 var(--green);
+  }
+  @keyframes flip-in{
+    0%{ transform:rotateX(90deg); opacity:0; }
+    100%{ transform:rotateX(0deg); opacity:1; }
+  }
+  .tag{
+    width:12px; height:12px; border-radius:3px;
+  }
+  .tag.client{background:var(--green);}
+  .tag.internal{background:var(--blue);}
+  .tag.vendor{background:var(--pink);}
+  .tag.audit{background:var(--gold);}
+
+  .staff{font-weight:600; font-size:16px;}
+  .staff .sub{display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:2px; letter-spacing:0.04em;}
+
+  .org{font-size:15px;}
+  .city{font-size:15px; color:var(--text);}
+  .city .pin{color:var(--muted); font-size:12px; margin-right:4px;}
+
+  .dates{font-size:14px; color:var(--text);}
+  .dates .range{color:var(--muted); font-size:12px; display:block;}
+
+  .status-pill{
+    justify-self:start;
+    font-size:11px;
+    letter-spacing:0.06em;
+    padding:5px 10px;
+    border-radius:20px;
+    text-transform:uppercase;
+    font-weight:600;
+  }
+  .status-pill.client{background:rgba(74,222,128,0.12); color:var(--green);}
+  .status-pill.internal{background:rgba(95,168,245,0.12); color:var(--blue);}
+  .status-pill.vendor{background:rgba(244,114,182,0.12); color:var(--pink);}
+  .status-pill.audit{background:rgba(251,191,36,0.12); color:var(--gold);}
+
+  footer{
+    margin-top:40px;
+    display:flex;
+    justify-content:space-between;
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:0.08em;
+    border-top:1px solid var(--card-border);
+    padding-top:14px;
+  }
+
+  @media (max-width:900px){
+    .row-header{display:none;}
+    .card{grid-template-columns:14px 1fr; grid-template-rows:auto auto auto auto; row-gap:6px;}
+  }
+
+  .loading, .empty, .error{
+    color:var(--muted);
+    font-size:14px;
+    padding:16px 20px;
+  }
+  .error{color:var(--pink);}
+</style>
+</head>
+<body>
+<div class="board">
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow">FIELD OPERATIONS</span>
+      <h1>SITE VISITS</h1>
+    </div>
+    <div class="clock">
+      <div>Wednesday, July 15</div>
+      <div class="time" id="clock">10:42 AM</div>
+    </div>
+  </header>
+
+  <!-- CURRENTLY ON SITE -->
+  <div class="section-label now">
+    <span class="live-dot"></span>
+    <h2>CURRENTLY ON SITE</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="row-header">
+    <span></span><span>Staff</span><span>Organization</span><span>City</span><span>Dates</span><span>Category</span>
+  </div>
+
+  <div id="current-list">
+    <div class="loading">Loading current visits…</div>
+  </div>
+
+  <!-- UPCOMING -->
+  <div class="section-label next">
+    <span style="width:10px;height:10px;"></span>
+    <h2>UPCOMING VISITS</h2>
+    <div class="line"></div>
+  </div>
+
+  <div class="row-header">
+    <span></span><span>Staff</span><span>Organization</span><span>City</span><span>Dates</span><span>Category</span>
+  </div>
+
+  <div id="upcoming-list">
+    <div class="loading">Loading upcoming visits…</div>
+  </div>
+
+  <footer>
+    <span id="footer-counts">— STAFF IN FIELD · — SCHEDULED</span>
+    <span id="footer-status">CONNECTING TO AIRTABLE…</span>
+  </footer>
+
+</div>
+
+<script>
+  /* ============================================================
+     AIRTABLE CONFIG — fill in these four values for your base
+     ============================================================ */
+  const CONFIG = {
+    PAT: "PASTE_YOUR_PERSONAL_ACCESS_TOKEN_HERE",   // Airtable Personal Access Token (starts with "pat...")
+    BASE_ID: "PASTE_YOUR_BASE_ID_HERE",              // starts with "app..."
+    TABLE_NAME: "Visits",                            // exact table name (or table ID, starts with "tbl...")
+    VIEW_CURRENT: "Current",                         // the view name we built earlier
+    VIEW_UPCOMING: "Upcoming",                       // the view name we built earlier
+    REFRESH_SECONDS: 60                              // how often to re-check Airtable
+  };
+
+  // Maps your Airtable "Category" field values to the CSS classes/colors already in this file.
+  // Edit the left-hand text to match your exact Category option labels if they differ.
+  const CATEGORY_CLASS = {
+    "Client Visit": "client",
+    "Internal Review": "internal",
+    "Vendor": "vendor",
+    "Audit": "audit"
+  };
+  const DEFAULT_CLASS = "internal";
+
+  /* ============================================================
+     Clock
+     ============================================================ */
+  function tick(){
+    const now = new Date();
+    let h = now.getHours();
+    const m = now.getMinutes().toString().padStart(2,'0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if(h===0) h = 12;
+    document.getElementById('clock').textContent = h + ':' + m + ' ' + ampm;
+    const dateEl = document.querySelector('.clock div:first-child');
+    if (dateEl) {
+      dateEl.textContent = now.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+    }
+  }
+  tick();
+  setInterval(tick, 1000*30);
+
+  /* ============================================================
+     Airtable fetch + render
+     ============================================================ */
+  function fmtDate(d){
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  }
+
+  function dateSubLabel(start, end, isCurrent){
+    const today = new Date(); today.setHours(0,0,0,0);
+    const s = new Date(start); s.setHours(0,0,0,0);
+    const e = new Date(end); e.setHours(0,0,0,0);
+    if (isCurrent){
+      const totalDays = Math.round((e - s) / 86400000) + 1;
+      const dayNum = Math.round((today - s) / 86400000) + 1;
+      return totalDays <= 1 ? "Single day" : `Day ${dayNum} of ${totalDays}`;
+    } else {
+      const daysUntil = Math.round((s - today) / 86400000);
+      return daysUntil <= 0 ? "Starting today" : `Starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
+    }
+  }
+
+  function renderCard(record, isCurrent){
+    const f = record.fields;
+    const staff = f["Staff Member"] || "—";
+    const role = f["Role"] || "";
+    const org = f["Organization"] || "—";
+    const city = f["City"] || "—";
+    const category = f["Category"] || "";
+    const cls = CATEGORY_CLASS[category] || DEFAULT_CLASS;
+    const start = f["Start Date"] ? new Date(f["Start Date"]) : null;
+    const end = f["End Date"] ? new Date(f["End Date"]) : null;
+    const dateText = (start && end) ? `${fmtDate(start)} – ${fmtDate(end)}` : "—";
+    const subLabel = (start && end) ? dateSubLabel(start, end, isCurrent) : "";
+
+    return `
+      <div class="card ${isCurrent ? 'now' : ''}">
+        <span class="tag ${cls}"></span>
+        <span class="staff">${staff}${role ? `<span class="sub">${role}</span>` : ''}</span>
+        <span class="org">${org}</span>
+        <span class="city"><span class="pin">📍</span>${city}</span>
+        <span class="dates">${dateText}${subLabel ? `<span class="range">${subLabel}</span>` : ''}</span>
+        <span class="status-pill ${cls}">${category || 'Uncategorized'}</span>
+      </div>`;
+  }
+
+  async function fetchView(viewName){
+    const url = `https://api.airtable.com/v0/${CONFIG.BASE_ID}/${encodeURIComponent(CONFIG.TABLE_NAME)}?view=${encodeURIComponent(viewName)}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${CONFIG.PAT}` }
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Airtable request failed (${res.status}): ${body}`);
+    }
+    const data = await res.json();
+    return data.records || [];
+  }
+
+  async function refreshBoard(){
+    const currentEl = document.getElementById('current-list');
+    const upcomingEl = document.getElementById('upcoming-list');
+    const statusEl = document.getElementById('footer-status');
+    const countsEl = document.getElementById('footer-counts');
+
+    try {
+      const [currentRecords, upcomingRecords] = await Promise.all([
+        fetchView(CONFIG.VIEW_CURRENT),
+        fetchView(CONFIG.VIEW_UPCOMING)
+      ]);
+
+      currentEl.innerHTML = currentRecords.length
+        ? currentRecords.map(r => renderCard(r, true)).join('')
+        : `<div class="empty">No one is currently on site.</div>`;
+
+      upcomingEl.innerHTML = upcomingRecords.length
+        ? upcomingRecords.map(r => renderCard(r, false)).join('')
+        : `<div class="empty">No upcoming visits scheduled.</div>`;
+
+      countsEl.textContent = `${currentRecords.length} STAFF IN FIELD · ${upcomingRecords.length} SCHEDULED`;
+      const now = new Date();
+      statusEl.textContent = `LAST UPDATED ${now.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "CONNECTION ERROR — CHECK CONFIG / TOKEN";
+      // Only replace the lists with an error message if they're still empty (first load failed)
+      if (currentEl.querySelector('.loading')) {
+        currentEl.innerHTML = `<div class="error">Couldn't load data from Airtable. Check the PAT, Base ID, and view names in CONFIG.</div>`;
+      }
+      if (upcomingEl.querySelector('.loading')) {
+        upcomingEl.innerHTML = `<div class="error">Couldn't load data from Airtable. Check the PAT, Base ID, and view names in CONFIG.</div>`;
+      }
+    }
+  }
+
+  refreshBoard();
+  setInterval(refreshBoard, CONFIG.REFRESH_SECONDS * 1000);
+</script>
+</body>
+</html>
