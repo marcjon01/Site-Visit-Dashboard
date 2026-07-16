@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Site Visits — Live Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
@@ -91,6 +92,13 @@
     flex:1;
     height:1px;
     background:var(--card-border);
+  }
+  .page-indicator{
+    font-size:11px;
+    letter-spacing:0.08em;
+    color:var(--muted);
+    text-transform:uppercase;
+    white-space:nowrap;
   }
   .live-dot{
     width:10px; height:10px; border-radius:50%;
@@ -193,9 +201,45 @@
     padding:16px 20px;
   }
   .error{color:var(--pink);}
+
+  /* ---- Portrait / vertical monitor adjustments ---- */
+  @media (orientation:portrait){
+    .board{ max-width:100%; padding:20px 16px 40px; }
+    .brand h1{ font-size:26px; }
+    .row-header{display:none;}
+    .card{
+      grid-template-columns:1fr 14px;
+      grid-template-rows:auto auto auto auto auto;
+      row-gap:8px;
+      padding:18px 20px;
+    }
+    .status-pill{ justify-self:start; }
+  }
+
+  /* ---- Fullscreen toggle button ---- */
+  #fullscreen-btn{
+    position:fixed;
+    bottom:16px;
+    right:16px;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    color:var(--amber);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    padding:10px 16px;
+    border-radius:6px;
+    cursor:pointer;
+    z-index:1000;
+    transition:opacity 0.3s ease;
+  }
+  #fullscreen-btn:hover{ border-color:var(--amber); }
+  #fullscreen-btn.hidden{ opacity:0; pointer-events:none; }
 </style>
 </head>
 <body>
+<button id="fullscreen-btn">⛶ Full Screen</button>
 <div class="board">
 
   <header>
@@ -214,6 +258,7 @@
     <span class="live-dot"></span>
     <h2>CURRENTLY ON SITE</h2>
     <div class="line"></div>
+    <span class="page-indicator" id="current-page-indicator"></span>
   </div>
 
   <div class="row-header">
@@ -229,6 +274,7 @@
     <span style="width:10px;height:10px;"></span>
     <h2>UPCOMING VISITS</h2>
     <div class="line"></div>
+    <span class="page-indicator" id="upcoming-page-indicator"></span>
   </div>
 
   <div class="row-header">
@@ -256,7 +302,9 @@
     TABLE_NAME: "Visits",                            // exact table name (or table ID, starts with "tbl...")
     VIEW_CURRENT: "Currently",                        // matches your actual view name
     VIEW_UPCOMING: "Upcoming",                        // the view name we built earlier
-    REFRESH_SECONDS: 60                              // how often to re-check Airtable
+    REFRESH_SECONDS: 60,                             // how often to re-check Airtable
+    PAGE_SIZE: 10,                                    // how many visits to show per screen, per section
+    ROTATE_SECONDS: 10                                // how long each page stays on screen before advancing
   };
 
   // Explicit color assignment for each team (instead of auto-hashing), so
@@ -366,6 +414,60 @@
     return data.records || [];
   }
 
+  /* ============================================================
+     Pagination / rotation state
+     ============================================================ */
+  let allCurrentRecords = [];
+  let allUpcomingRecords = [];
+  let currentPageIndex = 0;
+  let upcomingPageIndex = 0;
+
+  function paginate(records, pageIndex, pageSize){
+    const start = pageIndex * pageSize;
+    return records.slice(start, start + pageSize);
+  }
+
+  function totalPages(records, pageSize){
+    return Math.max(1, Math.ceil(records.length / pageSize));
+  }
+
+  function renderSection(listEl, indicatorEl, allRecords, pageIndex, isCurrent, emptyMessage){
+    const pageSize = CONFIG.PAGE_SIZE;
+    const pageRecords = paginate(allRecords, pageIndex, pageSize);
+    const pages = totalPages(allRecords, pageSize);
+
+    listEl.innerHTML = pageRecords.length
+      ? pageRecords.map(r => renderCard(r, isCurrent)).join('')
+      : `<div class="empty">${emptyMessage}</div>`;
+
+    indicatorEl.textContent = pages > 1
+      ? `Page ${pageIndex + 1} of ${pages} · ${allRecords.length} total`
+      : (allRecords.length > 0 ? `${allRecords.length} total` : '');
+  }
+
+  function renderBoard(){
+    renderSection(
+      document.getElementById('current-list'),
+      document.getElementById('current-page-indicator'),
+      allCurrentRecords, currentPageIndex, true,
+      "No one is currently on site."
+    );
+    renderSection(
+      document.getElementById('upcoming-list'),
+      document.getElementById('upcoming-page-indicator'),
+      allUpcomingRecords, upcomingPageIndex, false,
+      "No upcoming visits scheduled."
+    );
+  }
+
+  function rotatePages(){
+    const currentPages = totalPages(allCurrentRecords, CONFIG.PAGE_SIZE);
+    const upcomingPages = totalPages(allUpcomingRecords, CONFIG.PAGE_SIZE);
+    currentPageIndex = (currentPageIndex + 1) % currentPages;
+    upcomingPageIndex = (upcomingPageIndex + 1) % upcomingPages;
+    renderBoard();
+  }
+
   async function refreshBoard(){
     const currentEl = document.getElementById('current-list');
     const upcomingEl = document.getElementById('upcoming-list');
@@ -378,13 +480,16 @@
         fetchView(CONFIG.VIEW_UPCOMING)
       ]);
 
-      currentEl.innerHTML = currentRecords.length
-        ? currentRecords.map(r => renderCard(r, true)).join('')
-        : `<div class="empty">No one is currently on site.</div>`;
+      allCurrentRecords = currentRecords;
+      allUpcomingRecords = upcomingRecords;
 
-      upcomingEl.innerHTML = upcomingRecords.length
-        ? upcomingRecords.map(r => renderCard(r, false)).join('')
-        : `<div class="empty">No upcoming visits scheduled.</div>`;
+      // Keep pages in bounds if the record count shrank since the last refresh
+      const currentPages = totalPages(allCurrentRecords, CONFIG.PAGE_SIZE);
+      const upcomingPages = totalPages(allUpcomingRecords, CONFIG.PAGE_SIZE);
+      if (currentPageIndex >= currentPages) currentPageIndex = 0;
+      if (upcomingPageIndex >= upcomingPages) upcomingPageIndex = 0;
+
+      renderBoard();
 
       countsEl.textContent = `${currentRecords.length} STAFF IN FIELD · ${upcomingRecords.length} SCHEDULED`;
       const now = new Date();
@@ -404,6 +509,25 @@
 
   refreshBoard();
   setInterval(refreshBoard, CONFIG.REFRESH_SECONDS * 1000);
+  setInterval(rotatePages, CONFIG.ROTATE_SECONDS * 1000);
+
+  /* ============================================================
+     Fullscreen toggle — browsers require a real click/tap to
+     enter fullscreen, so we show a small button until it's used.
+     ============================================================ */
+  const fsBtn = document.getElementById('fullscreen-btn');
+  fsBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error('Fullscreen request failed:', err);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    fsBtn.classList.toggle('hidden', !!document.fullscreenElement);
+  });
 </script>
 </body>
 </html>
